@@ -6,8 +6,8 @@ import numpy as np
 from skimage.metrics import structural_similarity
  
 # ----------------------配置修改成你自己的路径----------------------
-CANOE_CFG = r"D:\demo\demo.cfg"  # CANoe工程cfg绝对路径
-TEMPLATE_IMG = r"D:\demo\hmi_template.jpg"  # HMI参考模板图
+CANOE_CFG = r"C:\STLA\AutoTest\test.cfg"  # CANoe工程cfg绝对路径
+TEMPLATE_IMG = r"C:\STLA\AutoTest\demo.jpg"  # HMI参考模板图
 # ----------------------------------------------------------------
  
 @pytest.fixture(scope="session")
@@ -19,6 +19,7 @@ def canoe_app():
     print("\n==== 连接CANoe COM ====")
     app = win32com.client.Dispatch("CANoe.Application")
     app.Visible = True   # True显示CANoe窗口；False后台运行
+    print("\n Current COM CANOE version:", app.version)
  
     # 打开工程配置
     app.Configuration.Open(CANOE_CFG)
