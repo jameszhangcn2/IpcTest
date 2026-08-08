@@ -20,6 +20,8 @@ pytest断言判定PASS/FAIL
 bash   
 # 简单运行
 pytest test_canoe_hmi.py -v
+
+python -m pytest test_canoe_hmi.py -v
  
 # 生成allure报告
 pytest test_canoe_hmi.py -v --alluredir=allure-result
