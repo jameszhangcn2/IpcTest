@@ -22,7 +22,15 @@ def canoe_app():
     print("\n Current COM CANOE version:", app.version)
  
     # 打开工程配置
-    app.Configuration.Open(CANOE_CFG)
+    app.Open(CANOE_CFG)
+    # 确认已加载
+    config = app.Configuration
+    print(f"✅ 已加载配置: {config.Name}")  # 应该显示你工程里的配置名（如 Configuration 1）
+
+    # 显示 Configuration 视图
+    #app.ActivateView(0)
+    #app.ConfigurationWindow.Visible = True
+        
     measurement = app.Measurement
  
     # 启动测量
@@ -93,10 +101,18 @@ def test_dashboard_hmi_visual(canoe_app):
     5. pytest断言相似度阈值
     """
     canoe = canoe_app
+    keyonState = get_sys_var(canoe, "Sysv_IGWorkCondition", "Sysv_IGWorkCondition")
+    
+    print("\n Sysv_IGWorkCondition ", keyonState)
+    
+    
+    set_sys_var(canoe, "Sysv_IGWorkCondition", "Sysv_IGWorkCondition", 5)
+    
+    print("\n Sysv_IGWorkCondition ", get_sys_var(canoe, "Sysv_IGWorkCondition", "Sysv_IGWorkCondition"))
  
     # 1. 设置总线信号 VehicleSpeed=80
-    set_signal(canoe, "VehicleSpeed", "DemoDB", 80)
-    time.sleep(2.5)  # 等待HMI界面刷新
+    # set_signal(canoe, "VehicleSpeed", "DemoDB", 80)
+    time.sleep(10)  # 等待HMI界面刷新
  
     # 2. OpenCV摄像头视觉比对
     ssim_score = calc_ssim_camera_vs_template(TEMPLATE_IMG)
