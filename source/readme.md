@@ -22,7 +22,8 @@ bash
 pytest test_canoe_hmi.py -v
 
 python -m pytest test_canoe_hmi.py -v
- 
+python -m pytest test_canoe_hmi.py -v -s
+
 # 生成allure报告
 pytest test_canoe_hmi.py -v --alluredir=allure-result
 allure serve allure-result
