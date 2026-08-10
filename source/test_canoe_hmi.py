@@ -8,12 +8,65 @@ import os
 import subprocess
 import numpy as np
 from skimage.metrics import structural_similarity
+from pathlib import Path
+from typing import Optional
+import threading
+#from camera_recorder import CameraRecorder
  
 # ----------------------配置修改成你自己的路径----------------------
 CANOE_CFG = r"C:\STLA\AutoTest\test.cfg"  # CANoe工程cfg绝对路径
 TEMPLATE_IMG = r"C:\STLA\AutoTest\demo.jpg"  # HMI参考模板图
 # ----------------------------------------------------------------
 
+
+class CameraRecorder:
+    def __init__(self, save_root: Path, fps: int = 15, camera_id: int = 0):
+        self.save_root = save_root
+        self.fps = fps
+        self.camera_id = camera_id
+        self.cap: Optional[cv2.VideoCapture] = None
+        self.writer: Optional[cv2.VideoWriter] = None
+        self.video_path: str = ""
+
+    def start_record(self, case_name: str):
+        """启动摄像头+录像"""
+        # 打开摄像头
+        self.cap = cv2.VideoCapture(self.camera_id)
+        if not self.cap.isOpened():
+            raise RuntimeError(f"无法打开摄像头 id={self.camera_id}")
+
+        # 获取摄像头分辨率
+        width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        # 路径构造
+        time_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        date_folder = self.save_root / datetime.datetime.now().strftime("%Y%m%d")
+        date_folder.mkdir(parents=True, exist_ok=True)
+        self.video_path = str(date_folder / f"{time_str}_{case_name}.mp4")
+
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        self.writer = cv2.VideoWriter(self.video_path, fourcc, self.fps, (width, height))
+        print(f"[Camera Record START] {self.video_path}")
+
+    def grab_frame(self):
+        """读取一帧写入视频（子线程循环调用）"""
+        if self.cap is None or self.writer is None:
+            return
+        ret, frame = self.cap.read()
+        if ret:
+            self.writer.write(frame)
+
+    def stop_record(self):
+        """释放摄像头、保存文件"""
+        if self.writer:
+            self.writer.release()
+        if self.cap:
+            self.cap.release()
+        print(f"[Camera Record SAVED] {self.video_path}")
+        self.writer = None
+        self.cap = None
+        
 def kill_canoe_process():
     try:
         subprocess.run(["taskkill", "/F", "/IM", "CANoe64.exe"], capture_output=True, shell=False)
@@ -61,7 +114,52 @@ def canoe_app():
         measurement.Stop()
     app.Quit()
  
- 
+# =========配置区=========
+BASE_PATH = Path(__file__).resolve().parent
+VIDEO_DIR = BASE_PATH / "camera_video"
+CAMERA_INDEX_PIC = 1   # 第0号摄像头，多摄像头可改成1,2
+CAMERA_INDEX_VIDEO = 1
+REC_FPS = 12
+# =======================
+
+@pytest.fixture(scope="session")
+def cam_recorder():
+    rec = CameraRecorder(save_root=VIDEO_DIR, fps=REC_FPS, camera_id=CAMERA_INDEX_VIDEO)
+    yield rec
+
+@pytest.fixture(scope="function", autouse=True)
+def auto_camera_record(cam_recorder, request):
+    case_name = request.node.name
+    stop_event = threading.Event()
+
+    # 开启摄像头录像
+    cam_recorder.start_record(case_name)
+
+    # 后台线程持续取帧
+    def frame_loop():
+        interval = 1.0 / cam_recorder.fps
+        while not stop_event.is_set():
+            cam_recorder.grab_frame()
+            time.sleep(interval)
+
+    rec_thread = threading.Thread(target=frame_loop, daemon=True)
+    rec_thread.start()
+
+    yield  # 执行测试用例
+
+    # 用例结束，停止录制
+    stop_event.set()
+    rec_thread.join()
+    cam_recorder.stop_record()
+
+
+# =========可选：只失败保留视频，成功删除=========
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, "rep_" + rep.when, rep)
+    
 def get_sys_var(canoe, namespace: str, var_name: str):
     """读取CANoe系统变量"""
     systemCAN = canoe.System.Namespaces
@@ -121,7 +219,7 @@ def camera_capture_one(cam_id=0, width=1280, height=720):
  
  
 def calc_ssim_camera_vs_template(template_path):
-    frame = camera_capture_one(1)
+    frame = camera_capture_one(CAMERA_INDEX_PIC)
     template = cv2.imread(template_path)
     h, w = template.shape[:2]
     frame = cv2.resize(frame, (w, h))
