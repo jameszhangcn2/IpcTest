@@ -4,6 +4,8 @@ from pathlib import Path
 from utils.camera_recorder import CameraRecorder
 from utils.camera_picture import CameraPicture
 from utils.canoe_api import CanoeApi
+from utils.serial_kl15 import SerialKL15
+
 import pytest
 import pythoncom
 import win32com.client
@@ -20,9 +22,10 @@ import threading
 
 BASE_DIR = Path(__file__).resolve().parent
 VIDEO_DIR = BASE_DIR / "camera_video"
-CAMERA_INDEX_PICTURE = 1   # 第0号摄像头，多摄像头可改成1,2
+CAMERA_INDEX_PICTURE = 2   # 第0号摄像头，多摄像头可改成1,2
 CAMERA_INDEX_VIDEO = 1
 REC_FPS = 12
+KL15COM_PORT="COM6"
 # ----------------------配置修改成你自己的路径----------------------
 CANOE_CFG = str(BASE_DIR / "CANoe" / "test.cfg")# CANoe工程cfg绝对路径
 
@@ -81,7 +84,7 @@ def kill_canoe_process():
         pass
         
 @pytest.fixture(scope="session")
-def canoe_api():
+def canoe_api(kl15):
     """
     session级别fixture：所有用例执行前启动CANoe，全部跑完关闭CANoe
     yield之前=前置；yield之后=后置清理，就算用例失败也执行
@@ -97,11 +100,13 @@ def canoe_api():
     assert os.path.exists(CANOE_CFG)
     time.sleep(2)
     
+    
     # 打开工程配置
     canoeApi.app.Open(CANOE_CFG)
     # 确认已加载
     config = canoeApi.app.Configuration
     print(f"✅ 已加载配置: {config.Name}")  # 应该显示你工程里的配置名（如 Configuration 1）
+    kl15.kl15on() #keyon KL15
     time.sleep(2)
     # 显示 Configuration 视图
     #app.ActivateView(0)
@@ -120,5 +125,25 @@ def canoe_api():
     print("\n==== 关闭CANoe ====")
     if measurement.Running:
         measurement.Stop()
+        kl15.kl15off() #keyon KL15
     canoeApi.app.Quit()
+ 
+
+@pytest.fixture(scope="session")
+def kl15():
+    """
+    session级别fixture：所有用例执行前启动CANoe，全部跑完关闭CANoe
+    yield之前=前置；yield之后=后置清理，就算用例失败也执行
+    """
+    kl15 = SerialKL15(KL15COM_PORT)
+    
+    assert kl15.isKl15Open()
+    time.sleep(2)
+    
+    yield kl15   # 把canoe对象传给测试用例
+ 
+    # --------后置清理：全部用例跑完执行--------
+    print("\n==== 关闭KL15 serial port ====")
+    kl15.ser.close()
+    
     
