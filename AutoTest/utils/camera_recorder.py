@@ -2,7 +2,7 @@ import cv2
 import datetime
 
 class CameraRecorder:
-    def __init__(self, save_root: Path, fps: int = 15, camera_id: int = 0):
+    def __init__(self, save_root: Path, fps: int = 30, camera_id: int = 0):
         self.save_root = save_root
         self.fps = fps
         self.camera_id = camera_id
@@ -20,6 +20,8 @@ class CameraRecorder:
         # 获取摄像头分辨率
         width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print(f"[Camera width] {width}")
+        print(f"[Camera height] {height}")
 
         # 路径构造
         time_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

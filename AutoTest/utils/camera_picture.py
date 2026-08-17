@@ -5,15 +5,16 @@ import numpy as np
 from skimage.metrics import structural_similarity
 
 class CameraPicture:
-    def __init__(self, camera_id: int = 0):
+    def __init__(self, save_root: Path, camera_id: int = 0):
         self.camera_id = camera_id
+        self.save_root = save_root
     def camera_save_pic(self, frame,note: str = ""):
         # 1. 生成时间字符串
         now = datetime.datetime.now()
         time_str = now.strftime("%Y%m%d_%H%M%S")
-
+        os.makedirs(self.save_root, exist_ok=True)
         # 2. 创建文件夹（按日期分文件夹，方便归档）
-        date_folder = os.path.join(os.getcwd(), now.strftime("%Y%m%d"))
+        date_folder = os.path.join(self.save_root, now.strftime("%Y%m%d"))
         os.makedirs(date_folder, exist_ok=True)
 
         # 3. 组装文件名
