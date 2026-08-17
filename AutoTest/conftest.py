@@ -21,14 +21,15 @@ from typing import Optional
 import threading
 
 BASE_DIR = Path(__file__).resolve().parent
-VIDEO_DIR = BASE_DIR / "camera_video"
+VIDEO_DIR = BASE_DIR / "testlogs/camera_video"
+PICTURE_DIR = BASE_DIR / "testlogs/camera_picture"
 CAMERA_INDEX_PICTURE = 2   # 第0号摄像头，多摄像头可改成1,2
 CAMERA_INDEX_VIDEO = 1
 REC_FPS = 12
 KL15COM_PORT="COM6"
 # ----------------------配置修改成你自己的路径----------------------
-CANOE_CFG = str(BASE_DIR / "CANoe" / "test.cfg")# CANoe工程cfg绝对路径
-
+#CANOE_CFG = str(BASE_DIR / "CANoe" / "test.cfg")# CANoe工程cfg绝对路径
+CANOE_CFG = str(BASE_DIR / "CANoe" / "332Replay.cfg")# CANoe工程cfg绝对路径
 #TEMPLATE_IMG = str(BASE_DIR / "CANoe" / "demo.jpg") # HMI参考模板图
 # ----------------------------------------------------------------
 
@@ -39,7 +40,7 @@ def cam_recorder():
 
 @pytest.fixture(scope="session")
 def cam_picture():
-    rec = CameraPicture(camera_id=CAMERA_INDEX_PICTURE)
+    rec = CameraPicture(save_root=PICTURE_DIR, camera_id=CAMERA_INDEX_PICTURE)
     yield rec
     
 @pytest.fixture(scope="function", autouse=True)
