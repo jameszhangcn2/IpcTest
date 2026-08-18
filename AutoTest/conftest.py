@@ -22,6 +22,7 @@ import threading
 import sys
 from datetime import datetime
 
+from openpyxl import Workbook, load_workbook
 
 BASE_DIR = Path(__file__).resolve().parent
 VIDEO_DIR = BASE_DIR / "testlogs"
@@ -36,13 +37,29 @@ CANOE_CFG = str(BASE_DIR / "CANoe" / "332Replay.cfg")# CANoe工程cfg绝对路�
 #TEMPLATE_IMG = str(BASE_DIR / "CANoe" / "demo.jpg") # HMI参考模板图
 # ----------------------------------------------------------------
 
+# 1. 注册自定义命令行参数 --log-root
+def pytest_addoption(parser):
+    parser.addoption(
+        "--log-root",
+        action="store",
+        default="./testlogs",  # 默认日志根目录
+        help="顶层日志根目录路径，例：--log-root=C:/AutoTest/logs"
+    )
+
+# 2. session级全局fixture：拿到根目录
 @pytest.fixture(scope="session")
-def dir_session():
-    log_dir = BASE_DIR / "testlogs/case_logs"
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = os.path.join(log_dir, f"{timestamp}")
-    
-    yield log_path
+def log_root(pytestconfig):
+    root_path = Path(pytestconfig.getoption("--log-root")).resolve()
+    root_path.mkdir(parents=True, exist_ok=True)
+    return root_path
+
+# 3. session日志总目录（带时间戳，所有用例共用）
+@pytest.fixture(scope="session")
+def dir_session(log_root):
+    session_dir = log_root
+    session_dir.mkdir(parents=True, exist_ok=True)
+    print(f"✅ Session全局日志目录：{session_dir}")
+    return session_dir
     
 @pytest.fixture(scope="session")
 def cam_recorder():
@@ -210,4 +227,84 @@ def case_logger(case_logger_dir, request):
     sys.stderr = old_stderr
     log_fp.close()
     print(f"本条用例日志已保存：{log_path}")
+
+# 全局变量：excel路径，会话启动时初始化
+excel_save_path: Path = None
+
+
+def init_excel_file(file_path: Path):
+    """创建Excel并写入表头（文件不存在时执行）"""
+    if file_path.exists():
+        return
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "List of Failed Cases"
+    headers = ["CaseNodeID", "DateTime", "CaseLogPath", "FailureInfo"]
+    ws.append(headers)
+    # 列宽
+    widths = [60, 20, 80, 100]
+    for idx, w in enumerate(widths, start=1):
+        ws.column_dimensions[chr(64 + idx)].width = w
+    wb.save(file_path)
+
+
+def append_failed_case_to_excel(file_path: Path, data: dict):
+    """实时追加一行失败记录"""
+    if not file_path.exists():
+        init_excel_file(file_path)
+    # 打开文件追加
+    wb = load_workbook(file_path)
+    ws = wb.active
+    row = [
+        data["nodeid"],
+        data["execute_time"],
+        data["case_log_path"],
+        data["error_info"]
+    ]
+    ws.append(row)
+    wb.save(file_path)
+    wb.close()
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, "rep_" + rep.when, rep)
+
+    global excel_save_path
+    if excel_save_path is None:
+        return
+
+    # 只捕获call阶段失败
+    if rep.when == "call" and rep.failed:
+        case_nodeid = item.nodeid
+        error_msg = str(rep.longrepr) if rep.longrepr else "未知异常"
+        exec_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        case_dir = ""
+        if hasattr(item, "funcargs") and "case_log_dir" in item.funcargs:
+            case_dir = str(item.funcargs["case_log_dir"])
+
+        record = {
+            "nodeid": case_nodeid,
+            "execute_time": exec_time,
+            "case_log_path": case_dir,
+            "error_info": error_msg[:1500]
+        }
+        # ✅ 实时写入
+        append_failed_case_to_excel(excel_save_path, record)
+        print(f"[实时记录] 失败用例已写入Excel：{case_nodeid}")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_excel_path(dir_session):
+    """when session started, init the excel path."""
+    global excel_save_path
+    excel_save_path = dir_session / "failed_cases_list.xlsx"
+    init_excel_file(excel_save_path)
+    print(f"Failed case excel path：{excel_save_path}")
+    yield
+    # the failed case is realtime added.
+    
     
