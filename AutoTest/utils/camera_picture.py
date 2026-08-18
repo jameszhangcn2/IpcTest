@@ -8,21 +8,21 @@ class CameraPicture:
     def __init__(self, save_root: Path, camera_id: int = 0):
         self.camera_id = camera_id
         self.save_root = save_root
-    def camera_save_pic(self, frame,note: str = ""):
+    def camera_save_pic(self, frame,case_dir, note: str = ""):
         # 1. 生成时间字符串
         now = datetime.datetime.now()
         time_str = now.strftime("%Y%m%d_%H%M%S")
-        os.makedirs(self.save_root, exist_ok=True)
+        #os.makedirs(self.save_root, exist_ok=True)
         # 2. 创建文件夹（按日期分文件夹，方便归档）
-        date_folder = os.path.join(self.save_root, now.strftime("%Y%m%d"))
-        os.makedirs(date_folder, exist_ok=True)
+        #date_folder = os.path.join(self.save_root, now.strftime("%Y%m%d"))
+        #os.makedirs(date_folder, exist_ok=True)
 
         # 3. 组装文件名
         if note:
             filename = f"{time_str}_{note}.png"
         else:
             filename = f"{time_str}.png"
-        save_path = os.path.join(date_folder, filename)
+        save_path = os.path.join(case_dir, filename)
         print("Pic save path: ", save_path)
         cv2.imwrite(save_path, frame)
 
@@ -40,13 +40,13 @@ class CameraPicture:
         return frame
      
      
-    def calc_ssim_camera_vs_template(self, template_path):
+    def calc_ssim_camera_vs_template(self, template_path, case_dir):
         frame = self.camera_capture_one()
         template = cv2.imread(template_path)
         h, w = template.shape[:2]
         frame = cv2.resize(frame, (w, h))
         
-        self.camera_save_pic(frame)
+        self.camera_save_pic(frame, case_dir)
         
         g1 = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
         g2 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

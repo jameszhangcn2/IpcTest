@@ -1,4 +1,4 @@
-
+from pathlib import Path
 class CanoeApi:
     def __init__(self):
         self.app = None
@@ -26,3 +26,24 @@ class CanoeApi:
         """设置CAN信号值"""
         sig = self.app.GetSignal(sig_name, db_name)
         sig.Value = value
+        
+    def set_logging_blf_path(self, blf_abs_path: str, logger_index:int=1):
+        """
+        修改Measurement Setup第N个Logging模块输出路径
+        :param blf_abs_path: 完整绝对路径，必须 .blf/.asc
+        :param logger_index: Measurement Setup第几个Logging，默认第一个
+        """
+        blf_path = Path(blf_abs_path)
+        # 自动创建目录
+        blf_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # 获取OnlineSetup里所有Logging
+        logging_collection = self.app.Configuration.OnlineSetup.LoggingCollection
+        logger = logging_collection.Item(logger_index)
+
+        # 关键：FullName = 完整文件路径
+        logger.FullName = str(blf_path)
+        print(f"✅ CANoe Log路径已设置：{logger.FullName}")
+
+        # 可选：启用Logging（如果未勾选Enable Logging）
+        #logger.Enabled = True
