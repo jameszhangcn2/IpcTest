@@ -19,12 +19,15 @@ from skimage.metrics import structural_similarity
 from pathlib import Path
 from typing import Optional
 import threading
+import sys
+from datetime import datetime
+
 
 BASE_DIR = Path(__file__).resolve().parent
-VIDEO_DIR = BASE_DIR / "testlogs/camera_video"
-PICTURE_DIR = BASE_DIR / "testlogs/camera_picture"
-CAMERA_INDEX_PICTURE = 2   # 第0号摄像头，多摄像头可改成1,2
-CAMERA_INDEX_VIDEO = 1
+VIDEO_DIR = BASE_DIR / "testlogs"
+PICTURE_DIR = BASE_DIR / "testlogs"
+CAMERA_INDEX_PICTURE = 0   # 第0号摄像头，多摄像头可改成1,2
+CAMERA_INDEX_VIDEO = 2
 REC_FPS = 12
 KL15COM_PORT="COM6"
 # ----------------------配置修改成你自己的路径----------------------
@@ -33,6 +36,14 @@ CANOE_CFG = str(BASE_DIR / "CANoe" / "332Replay.cfg")# CANoe工程cfg绝对路�
 #TEMPLATE_IMG = str(BASE_DIR / "CANoe" / "demo.jpg") # HMI参考模板图
 # ----------------------------------------------------------------
 
+@pytest.fixture(scope="session")
+def dir_session():
+    log_dir = BASE_DIR / "testlogs/case_logs"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = os.path.join(log_dir, f"{timestamp}")
+    
+    yield log_path
+    
 @pytest.fixture(scope="session")
 def cam_recorder():
     rec = CameraRecorder(save_root=VIDEO_DIR, camera_id=CAMERA_INDEX_VIDEO)
@@ -44,12 +55,12 @@ def cam_picture():
     yield rec
     
 @pytest.fixture(scope="function", autouse=True)
-def auto_camera_record(cam_recorder, request):
+def auto_camera_record(cam_recorder, request, case_logger_dir, case_logger):
     case_name = request.node.name
     stop_event = threading.Event()
 
     # 开启摄像头录像
-    cam_recorder.start_record(case_name)
+    cam_recorder.start_record(case_name, case_logger_dir)
 
     # 后台线程持续取帧
     def frame_loop():
@@ -116,9 +127,9 @@ def canoe_api(kl15):
     measurement = canoeApi.app.Measurement
  
     # 启动测量
-    if not measurement.Running:
-        measurement.Start()
-        time.sleep(2)
+    #if not measurement.Running:
+    #    measurement.Start()
+    #    time.sleep(2)
  
     yield canoeApi   # 把canoe对象传给测试用例
  
@@ -147,4 +158,56 @@ def kl15():
     print("\n==== 关闭KL15 serial port ====")
     kl15.ser.close()
     
+
+@pytest.fixture(scope="function")
+def case_logger_dir(request, dir_session):
+    # 获取当前用例完整名称，处理非法文件名字符
+    case_name = request.node.nodeid.replace("/", "_").replace("\\", "_").replace(":", "_")
+    log_dir = Path(dir_session)
+    os.makedirs(log_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = os.path.join(log_dir, f"{case_name}_{timestamp}")
+
+    print(f"===== this case log dir：{log_path} =====")
+    yield log_path
+    print(f"===== this case log end：{log_path} =====")
+
+@pytest.fixture(scope="function")
+def case_logger(case_logger_dir, request):
+    log_dir = Path(case_logger_dir)
+    print("case_logger 文件夹是否存在：", log_dir.exists())
+    os.makedirs(log_dir, exist_ok=True)
+    time.sleep(1)
+    print("case_logger 文件夹是否存在：", log_dir.exists())
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = os.path.join(case_logger_dir, f"ScriptLog_{timestamp}.log")
+    log_fp = open(log_path, "w", encoding="utf-8")
+
+    # 保存原始输出流
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+
+    class DualOutput:
+        def write(self, text):
+            old_stdout.write(text)
+            log_fp.write(text)
+            log_fp.flush()
+        def flush(self):
+            old_stdout.flush()
+
+    stream = DualOutput()
+    sys.stdout = stream
+    sys.stderr = stream
+
+    print(f"===== 测试用例开始：{request.node.nodeid} =====")
+    yield log_path
+
+    # 用例执行完成后恢复流，关闭文件
+    print(f"===== 测试用例结束：{request.node.nodeid} =====")
+    sys.stdout = old_stdout
+    sys.stderr = old_stderr
+    log_fp.close()
+    print(f"本条用例日志已保存：{log_path}")
     
