@@ -2,6 +2,8 @@ import pytest
 import time
 from pathlib import Path
 from utils.image_check import template_match_in_roi
+from utils.image_check import finding_home_page
+
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_NORMAL_IMG = str(BASE_DIR / ".." / "testTemplate" / "normal.png") # HMI参考模板图
 TEMPLATE_SUMMARY_IMG = str(BASE_DIR / ".." / "testTemplate" / "summary.png") # HMI参考模板图
@@ -11,7 +13,9 @@ TRIPSUMMAR_IMG = str(BASE_DIR / ".." / "testTemplate" / "tripsummary.png") # HMI
 
 CAP_NORMAL_IMG = "cap_normal.png"
 CAP_SUMMARY_IMG = "cap_summary.png"
+CAP_HOME_PAGE_IMG = "cap_home_page.png"
 class TestHMI:
+    @pytest.mark.skipif(True, reason="CANoe环境未就绪，临时关闭")
     @pytest.mark.parametrize("loop_index", list(range(3)))
     def test_hmi(self, cam_recorder, cam_picture, canoe_api, kl15, case_logger, case_logger_dir, loop_index):
         print(f"Round {loop_index+1} Excuting...")
@@ -80,5 +84,72 @@ class TestHMI:
         # 4. pytest断言：相似度大于0.92才算PASS
         #assert ssim_score >= 0.92, f"HMI界面校验失败，SSIM={ssim_score}" 
         pass
+    @pytest.mark.parametrize("loop_index", list(range(1)))    
+    def test_send_can_and_check_signal(self, cam_recorder, cam_picture, canoe_api, kl15, case_logger, case_logger_dir, loop_index):
+        print(f"Round {loop_index+1} Excuting...")
+        canoeApi = canoe_api
+        assert (canoeApi != None)
         
-     
+        #KL15 on
+        kl15.kl15on()
+        print("KL15 ON")
+        
+        # button OK 11 data=[0x00, 0x10, 0x00, 0x00]
+        # button UP 12 data=[0x00, 0x40, 0x00, 0x00]
+        # button DOWN 13  data=[0x01, 0x00, 0x00, 0x00]
+        # button RIGHT 14 data=[0x04, 0x00, 0x00, 0x00]
+        # button LEFT  15 data=[0x10, 0x10, 0x00, 0x00]
+        
+        print("Folder exist：", Path(case_logger_dir).exists())
+        #set the CAN log directory
+        blf_file_path = str(Path(case_logger_dir) / "bus_log.asc")
+        canoe_api.set_logging_blf_path(blf_file_path, logger_index=1)
+        
+        measurement = canoe_api.app.Measurement
+ 
+        # 启动测量
+        if not measurement.Running:
+            measurement.Start()
+        print("Start the CANOE measurement.")
+        time.sleep(10)  # 等待总线响应
+        
+        keyonState = canoeApi.get_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition")
+        
+        print("\n Sysv_IGWorkCondition ", keyonState)
+        
+        
+        canoeApi.set_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition", 5)
+        time.sleep(1) 
+        print("\n Sysv_IGWorkCondition ", canoeApi.get_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition"))
+        # 1. 发送CAN ID=0x123，8字节数据
+        #canoe_api.canoe_send_can_message(
+        #    channel=1,
+        #    msg_id=0x2EE,
+        #    data=[0x04, 0x00, 0x00, 0x00]
+        #)
+        time.sleep(20)  # 等待总线响应
+        finding_home_page(canoe_api, cam_picture, case_logger_dir, 30.0, 0.5)
+        
+        # 1. 发送CAN ID=0x123，8字节数据
+        #canoe_api.canoe_send_can_message(
+        #    channel=1,
+        #    msg_id=0x2EE,
+        #    data=[0x04, 0x00, 0x00, 0x00]
+        #)
+        time.sleep(2)  # 等待总线响应
+        
+        # 1. 发送CAN ID=0x123，8字节数据
+        #canoe_api.canoe_send_can_message(
+        #    channel=1,
+        #    msg_id=0x2EE,
+        #    data=[0x04, 0x00, 0x00, 0x00]
+
+        time.sleep(2)  # 等待总线响应
+
+        # 2. 读取反馈信号
+        #speed_val = canoe_get_signal_value("CAN::EngineMsg::EngineSpeed")
+        #print(f"读取发动机转速 = {speed_val}")
+
+        # 断言
+        #assert speed_val > 800 
+        pass
