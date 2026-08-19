@@ -47,3 +47,41 @@ class CanoeApi:
 
         # 可选：启用Logging（如果未勾选Enable Logging）
         #logger.Enabled = True
+        
+    def canoe_send_can_message(self, channel: int, msg_id: int, data: list):
+        """
+        发送CAN报文
+        :param simulation: canoe_app.Simulation 对象
+        :param channel: CAN通道号，1/2
+        :param msg_id: 报文ID 十进制
+        :param data: 8字节列表 [0x11,0x22,...]
+        """
+        bus_can = self.app.Bus("BHCAN")
+        msg = bus_can.CreateMessage(channel, msg_id)
+        msg = self.app.CAN.CreateMessage(channel, msg_id)
+        msg.Data = data
+        msg.Send()
+        
+    def canoe_get_signal_value(self, signal_name: str, bus: str="CAN"):
+        """
+        读取当前信号值（Measurement → Signal）
+        :param signal_name: 信号全名，如 "CAN::EngineData::EngineSpeed"
+        :return: float
+        """
+        sig = self.app.Measurement.Signal(signal_name)
+        return sig.Value
+        
+        
+    def canoe_wait_signal(self, sig_name, expect_value, timeout=2.0, sleep_dt=0.05):
+        """
+        等待信号等于期望值，超时抛出异常
+        """
+        import time
+        start = time.time()
+        while time.time() - start < timeout:
+            val = canoe_get_signal_value(self.app, sig_name)
+            if val == expect_value:
+                return True, val
+            time.sleep(sleep_dt)
+        return False, val
+        
