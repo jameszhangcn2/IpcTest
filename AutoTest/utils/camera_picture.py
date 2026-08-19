@@ -8,26 +8,13 @@ class CameraPicture:
     def __init__(self, save_root: Path, camera_id: int = 0):
         self.camera_id = camera_id
         self.save_root = save_root
-    def camera_save_pic(self, frame,case_dir, note: str = ""):
-        # 1. 生成时间字符串
-        now = datetime.datetime.now()
-        time_str = now.strftime("%Y%m%d_%H%M%S")
-        #os.makedirs(self.save_root, exist_ok=True)
-        # 2. 创建文件夹（按日期分文件夹，方便归档）
-        #date_folder = os.path.join(self.save_root, now.strftime("%Y%m%d"))
-        #os.makedirs(date_folder, exist_ok=True)
-
-        # 3. 组装文件名
-        if note:
-            filename = f"{time_str}_{note}.png"
-        else:
-            filename = f"{time_str}.png"
+    def camera_save_pic(self, frame,case_dir, filename):
         save_path = os.path.join(case_dir, filename)
         print("Pic save path: ", save_path)
         cv2.imwrite(save_path, frame)
 
     # ==========OpenCV工具函数：摄像头截图、SSIM比对==========
-    def camera_capture_one(self, width=1280, height=720):
+    def camera_capture_one(self, width=1280, height=720, case_dir: str = "", filename: str = "testpic"):
         cap = cv2.VideoCapture(self.camera_id)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
@@ -37,6 +24,7 @@ class CameraPicture:
         cap.release()
         if not ret:
             return None
+        self.camera_save_pic(frame, case_dir, filename)
         return frame
      
      
