@@ -4,9 +4,9 @@ from utils.image_check import template_match_exist
 from utils.image_check import template_match_in_roi
 from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
-TEMPLATE_IMG = str(BASE_DIR / ".." / "testTemplate" / "normal.png") # HMI参考模板图
+TEMPLATE_IMG = str(BASE_DIR / ".." / "testTemplate" / "temp_6.png") # HMI参考模板图
 #ODOMETER_IMG = str(BASE_DIR / ".." / "testTemplate" / "odometerFake.png") # HMI局域匹配模板图
-ODOMETER_IMG = str(BASE_DIR / ".." / "testTemplate" / "odometer.png") # HMI局域匹配模板图
+ODOMETER_IMG = str(BASE_DIR / ".." / "testTemplate" / "speedometer.png") # HMI局域匹配模板图
 class TestIMG:
     @pytest.mark.parametrize("loop_index", list(range(1))) 
     def test_check_icon_exists(self, case_logger_dir, case_logger, loop_index, cam_recorder, cam_picture):

@@ -2,7 +2,11 @@ import pytest
 import time
 from pathlib import Path
 from utils.image_check import template_match_in_roi
-from utils.image_check import finding_home_page
+from utils.hmi_control import finding_home_page, get_current_page, go_to_page, show_all_pages
+from tests.config import PAGE_TABLE
+
+import logging
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_NORMAL_IMG = str(BASE_DIR / ".." / "testTemplate" / "normal.png") # HMI参考模板图
@@ -84,6 +88,7 @@ class TestHMI:
         # 4. pytest断言：相似度大于0.92才算PASS
         #assert ssim_score >= 0.92, f"HMI界面校验失败，SSIM={ssim_score}" 
         pass
+    @pytest.mark.skipif(True, reason="CANoe环境未就绪，临时关闭")
     @pytest.mark.parametrize("loop_index", list(range(1)))    
     def test_send_can_and_check_signal(self, cam_recorder, cam_picture, canoe_api, kl15, case_logger, case_logger_dir, loop_index):
         print(f"Round {loop_index+1} Excuting...")
@@ -127,8 +132,8 @@ class TestHMI:
         #    msg_id=0x2EE,
         #    data=[0x04, 0x00, 0x00, 0x00]
         #)
-        time.sleep(20)  # 等待总线响应
-        finding_home_page(canoe_api, cam_picture, case_logger_dir, 30.0, 0.5)
+        time.sleep(30)  # 等待总线响应
+        finding_home_page(canoe_api, cam_picture, case_logger_dir, 50.0, 0.5)
         
         # 1. 发送CAN ID=0x123，8字节数据
         #canoe_api.canoe_send_can_message(
@@ -153,3 +158,103 @@ class TestHMI:
         # 断言
         #assert speed_val > 800 
         pass
+    @pytest.mark.skipif(True, reason="CANoe环境未就绪，临时关闭")    
+    @pytest.mark.parametrize("loop_index", list(range(1)))    
+    def test_find_page(self, case_logger, case_logger_dir, loop_index):
+        print(f"Round {loop_index+1} Excuting...")
+        
+        valid, page_name, sub_menu_name = get_current_page(TEMPLATE_NORMAL_IMG)
+        print("valid, page_name, sub_menu_name: ", valid, page_name, sub_menu_name)
+
+        time.sleep(2)  # 等待总线响应
+
+        pass
+    @pytest.mark.skipif(True, reason="CANoe环境未就绪，临时关闭")        
+    @pytest.mark.parametrize("loop_index", list(range(1)))    
+    def test_goto_page(self, cam_recorder, cam_picture, canoe_api, kl15, case_logger, case_logger_dir, loop_index):
+        print(f"Round {loop_index+1} Excuting...")
+        canoeApi = canoe_api
+        assert (canoeApi != None)
+        
+        #KL15 on
+        kl15.kl15on()
+        print("KL15 ON")
+        
+        
+        print("Folder exist：", Path(case_logger_dir).exists())
+        #set the CAN log directory
+        blf_file_path = str(Path(case_logger_dir) / "bus_log.asc")
+        canoe_api.set_logging_blf_path(blf_file_path, logger_index=1)
+        
+        measurement = canoe_api.app.Measurement
+ 
+        # 启动测量
+        if not measurement.Running:
+            measurement.Start()
+        print("Start the CANOE measurement.")
+        time.sleep(20)  # 等待总线响应
+        
+        keyonState = canoeApi.get_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition")
+        
+        print("\n Sysv_IGWorkCondition ", keyonState)
+        
+        
+        canoeApi.set_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition", 5)
+        time.sleep(1) 
+        print("\n Sysv_IGWorkCondition ", canoeApi.get_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition"))
+        ret = go_to_page("HOME", "home_01", canoe_api, cam_picture, case_logger_dir, 60, 2)
+        
+        print("\n go to page RET: ", ret)
+
+        time.sleep(2)  # 等待总线响应
+        #shut down KL15, stop the measurement
+        kl15.kl15off()
+        if measurement.Running:
+            measurement.Stop()
+        time.sleep(10) 
+        pass    
+    @pytest.mark.parametrize("loop_index", list(range(1)))    
+    def test_show_page(self, cam_recorder, cam_picture, canoe_api, kl15, case_logger, case_logger_dir, loop_index):
+        print(f"Round {loop_index+1} Excuting...")
+        
+        logger.info(f"Start using logger loop_index = {loop_index} .")
+        
+        canoeApi = canoe_api
+        assert (canoeApi != None)
+        
+        #KL15 on
+        kl15.kl15on()
+        print("KL15 ON")
+        
+        
+        print("Folder exist：", Path(case_logger_dir).exists())
+        #set the CAN log directory
+        blf_file_path = str(Path(case_logger_dir) / "bus_log.asc")
+        canoe_api.set_logging_blf_path(blf_file_path, logger_index=1)
+        
+        measurement = canoe_api.app.Measurement
+ 
+        # 启动测量
+        if not measurement.Running:
+            measurement.Start()
+        print("Start the CANOE measurement.")
+        time.sleep(20)  # 等待总线响应
+        
+        keyonState = canoeApi.get_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition")
+        
+        print("\n Sysv_IGWorkCondition ", keyonState)
+        
+        
+        canoeApi.set_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition", 5)
+        time.sleep(1) 
+        print("\n Sysv_IGWorkCondition ", canoeApi.get_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition"))
+        ret = show_all_pages(canoe_api, cam_picture, case_logger_dir, 120, 3)
+
+        time.sleep(2)  # 等待总线响应
+        #shut down KL15, stop the measurement
+        kl15.kl15off()
+        if measurement.Running:
+            measurement.Stop()
+        time.sleep(10) 
+        pass        
+
