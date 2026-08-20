@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Optional
 import threading
 import sys
+import logging
 from datetime import datetime
 
 from openpyxl import Workbook, load_workbook
@@ -32,8 +33,8 @@ CAMERA_INDEX_VIDEO = 2
 REC_FPS = 12
 KL15COM_PORT="COM6"
 # ----------------------配置修改成你自己的路径----------------------
-#CANOE_CFG = str(BASE_DIR / "CANoe" / "test.cfg")# CANoe工程cfg绝对路径
-CANOE_CFG = str(BASE_DIR / "CANoe" / "332Replay.cfg")# CANoe工程cfg绝对路径
+CANOE_CFG = str(BASE_DIR / "CANoe" / "test.cfg")# CANoe工程cfg绝对路径
+#CANOE_CFG = str(BASE_DIR / "CANoe" / "332Replay.cfg")# CANoe工程cfg绝对路径
 #TEMPLATE_IMG = str(BASE_DIR / "CANoe" / "demo.jpg") # HMI参考模板图
 # ----------------------------------------------------------------
 
@@ -307,4 +308,25 @@ def setup_excel_path(dir_session):
     yield
     # the failed case is realtime added.
     
+@pytest.fixture(autouse=True, scope="session")
+def setup_logging():
+    """全局pytest日志增加时间戳，自动生效"""
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # 格式：时间 级别 模块名 消息
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%Y‑%m‑%d %H:%M:%S"
+    )
+
+    # 控制台输出
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+
+    yield
+    # session结束清理handler
+    root_logger.handlers.clear()
+
     
