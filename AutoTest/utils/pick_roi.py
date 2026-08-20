@@ -1,7 +1,7 @@
 import cv2
 from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
-TEMPLATE_IMG = str(BASE_DIR / ".." / "testTemplate" / "normal.png") # HMI参考模板图
+TEMPLATE_IMG = str(BASE_DIR / ".." / "testTemplate" / "temp_6.png") # HMI参考模板图
 TEMPLATE_SUMMARY_IMG = str(BASE_DIR / ".." / "testTemplate" / "summary.png") # HMI参考模板图
 ODOMETER_IMG = str(BASE_DIR / ".." / "testTemplate" / "odometer.png") # HMI局域匹配模板图
 SPEEDOMETER_IMG = str(BASE_DIR / ".." / "testTemplate" / "speedometer.png") # HMI局域匹配模板图
@@ -63,7 +63,7 @@ def pick_roi_by_mouse(image_path):
 
 if __name__ == "__main__":
     # ========= 修改成你的截图路径 =========
-    pic_path = TEMPLATE_SUMMARY_IMG
+    pic_path = TEMPLATE_IMG
     # =====================================
 
     res_roi = pick_roi_by_mouse(pic_path)
