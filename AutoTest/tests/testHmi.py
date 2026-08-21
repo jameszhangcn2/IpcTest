@@ -8,16 +8,6 @@ from tests.config import PAGE_TABLE
 import logging
 logger = logging.getLogger(__name__)
 
-BASE_DIR = Path(__file__).resolve().parent
-TEMPLATE_NORMAL_IMG = str(BASE_DIR / ".." / "testTemplate" / "normal.png") # HMI参考模板图
-TEMPLATE_SUMMARY_IMG = str(BASE_DIR / ".." / "testTemplate" / "summary.png") # HMI参考模板图
-ODOMETER_IMG = str(BASE_DIR / ".." / "testTemplate" / "odometer.png") # HMI局域匹配模板图
-SPEEDOMETER_IMG = str(BASE_DIR / ".." / "testTemplate" / "speedometer.png") # HMI局域匹配模板图
-TRIPSUMMAR_IMG = str(BASE_DIR / ".." / "testTemplate" / "tripsummary.png") # HMI局域匹配模板图
-
-CAP_NORMAL_IMG = "cap_normal.png"
-CAP_SUMMARY_IMG = "cap_summary.png"
-CAP_HOME_PAGE_IMG = "cap_home_page.png"
 class TestHMI:
     @pytest.mark.skipif(True, reason="CANoe环境未就绪，临时关闭")
     @pytest.mark.parametrize("loop_index", list(range(3)))

@@ -3,22 +3,25 @@ import time
 from utils.image_check import template_match_exist
 from utils.image_check import template_match_in_roi
 from pathlib import Path
-BASE_DIR = Path(__file__).resolve().parent
-TEMPLATE_IMG = str(BASE_DIR / ".." / "testTemplate" / "temp_6.png") # HMI参考模板图
-#ODOMETER_IMG = str(BASE_DIR / ".." / "testTemplate" / "odometerFake.png") # HMI局域匹配模板图
-ODOMETER_IMG = str(BASE_DIR / ".." / "testTemplate" / "speedometer.png") # HMI局域匹配模板图
+import logging
+logger = logging.getLogger(__name__)
+
+from tests.config import TEMPLATE_HOMEPAGE_IMG, TEMPLATE_SPEEDOMETER_IMG
+
+
 class TestIMG:
     @pytest.mark.parametrize("loop_index", list(range(1))) 
     def test_check_icon_exists(self, case_logger_dir, case_logger, loop_index, cam_recorder, cam_picture):
         print(f"第 {loop_index+1} 轮执行")
+        logger.info("Logger loop: %d.", loop_index)
         # 截图文件（执行测试前先完成截图动作）
-        screen_img = TEMPLATE_IMG
-        target_icon = ODOMETER_IMG
+        screen_img = TEMPLATE_HOMEPAGE_IMG
+        target_icon = TEMPLATE_SPEEDOMETER_IMG
 
         exists, score, pos = template_match_exist(screen_img, target_icon, threshold=0.8)
         print(f"最大匹配分数: {score:.3f}")
         
-        roi = (400, 500, 400, 100)
+        roi = (400, 500, 150, 200)
         exists, score, pos = template_match_in_roi(screen_img, target_icon, roi, threshold=0.8)
         print(f"最大匹配分数: {score:.3f}")
         time.sleep(10)
