@@ -5,9 +5,8 @@ import numpy as np
 from skimage.metrics import structural_similarity
 
 class CameraPicture:
-    def __init__(self, save_root: Path, camera_id: int = 0):
+    def __init__(self, camera_id: int = 0):
         self.camera_id = camera_id
-        self.save_root = save_root
     def camera_save_pic(self, frame,case_dir, filename):
         save_path = os.path.join(case_dir, filename)
         print("Pic save path: ", save_path)

@@ -2,8 +2,7 @@ import cv2
 import datetime
 from pathlib import Path
 class CameraRecorder:
-    def __init__(self, save_root: Path, fps: int = 30, camera_id: int = 0):
-        self.save_root = save_root
+    def __init__(self, fps: int = 30, camera_id: int = 0):
         self.fps = fps
         self.camera_id = camera_id
         self.cap: Optional[cv2.VideoCapture] = None
