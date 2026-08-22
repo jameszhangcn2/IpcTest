@@ -14,6 +14,12 @@ pytest --can-log=log.asc --baudrate=250000 --min-frames=100 -v
 python run_analysis.py your_log.asc -o output.xlsx
 python run_analysis.py --dir ./logs/ -o ./reports/
 
+# pytest 方式
+pytest --can-log=your_log.asc --dbc=your_db.dbc -v
+
+# 命令行脚本方式
+python run_analysis.py your_log.asc --dbc=your_db.dbc -o output.xlsx
+
 ```
 ```
 ## Excel 报告包含 5 个 Sheet
