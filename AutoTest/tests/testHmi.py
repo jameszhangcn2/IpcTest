@@ -159,7 +159,7 @@ class TestHMI:
         time.sleep(2)  # 等待总线响应
 
         pass
-    @pytest.mark.skipif(True, reason="CANoe环境未就绪，临时关闭")        
+    
     @pytest.mark.parametrize("loop_index", list(range(1)))    
     def test_goto_page(self, cam_recorder, cam_picture, canoe_api, kl15, case_logger, case_logger_dir, loop_index):
         print(f"Round {loop_index+1} Excuting...")
@@ -190,9 +190,10 @@ class TestHMI:
         
         
         canoeApi.set_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition", 5)
-        time.sleep(1) 
+        time.sleep(5) 
         print("\n Sysv_IGWorkCondition ", canoeApi.get_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition"))
-        ret = go_to_page("HOME", "home_01", canoe_api, cam_picture, case_logger_dir, 60, 2)
+        #ret = go_to_page("SETTING", "setting_01", canoe_api, cam_picture, case_logger_dir, 60, 2)
+        ret = go_to_page("HOME", "home_02", canoe_api, cam_picture, case_logger_dir, 300, 3)
         
         print("\n go to page RET: ", ret)
 
@@ -202,7 +203,8 @@ class TestHMI:
         if measurement.Running:
             measurement.Stop()
         time.sleep(10) 
-        pass    
+        pass
+    @pytest.mark.skipif(True, reason="CANoe环境未就绪，临时关闭")                
     @pytest.mark.parametrize("loop_index", list(range(1)))    
     def test_show_page(self, cam_recorder, cam_picture, canoe_api, kl15, case_logger, case_logger_dir, loop_index):
         print(f"Round {loop_index+1} Excuting...")
@@ -239,7 +241,8 @@ class TestHMI:
         time.sleep(1) 
         print("\n Sysv_IGWorkCondition ", canoeApi.get_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition"))
         ret = show_all_pages(canoe_api, cam_picture, case_logger_dir, 120, 3)
-
+        canoeApi.set_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition", 1)
+        time.sleep(1) 
         time.sleep(2)  # 等待总线响应
         #shut down KL15, stop the measurement
         kl15.kl15off()
