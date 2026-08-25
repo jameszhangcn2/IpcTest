@@ -1,7 +1,9 @@
 import time
 from pathlib import Path
 from utils.image_check import template_match_in_roi 
-from tests.config import PAGE_TABLE, PAGE_HOME_SUBMENU_TABLE, SPEEDOMETER_IMG
+from tests.config import PAGE_TABLE, PAGE_HOME_SUBMENU_TABLE, TEMPLATE_SPEEDOMETER_IMG
+import logging
+logger = logging.getLogger(__name__)
 
 def find_first(records:list[dict], key, match_value):
     for row in records:
@@ -154,26 +156,42 @@ def go_to_page(page_name, sub_menu_name, canoe_api, cam_picture, case_logger_dir
 
     start = time.time()
     loop = 0
-    
+    logger.info(" go_to_page Temp Loop %d page_name %s, sub_menu_name %s, cam_picture %s ", loop, page_name, sub_menu_name, cam_picture)
+    down_button_count = 0
+    left_button_count = 0    
     while time.time() - start < timeout:
         # =========业务逻辑=========
         ok = False
 
-        tempPic = f"temp_{loop}.png"
+        tempPic = f"temp_page_{loop}.png"
+        tempUniformPic = f"temp_page_{loop}_uniformd.png"
         cam_picture.camera_capture_one(1280, 720, case_logger_dir, tempPic)
-        big_img_path = str(Path(case_logger_dir) / tempPic)
-        valid, current_page_name, current_sub_menu_name = get_current_page(big_img_path)
-        print("valid, current_page_name, current_sub_menu_name: ", valid, current_page_name, current_sub_menu_name)
+        ret = cam_picture.camera_uniform_pic(tempPic, case_logger_dir, tempUniformPic)
+        current_page_name = None
+        current_sub_menu_name = None
+        big_img_path = None
+        valid = False
+        if ret:
+            big_img_path = str(Path(case_logger_dir) / tempUniformPic)
+            valid, current_page_name, current_sub_menu_name = get_current_page(big_img_path)
+        logger.info("Temp Loop %d valid %d, current_page_name %s, current_sub_menu_name %s ", loop, valid, current_page_name, current_sub_menu_name)
+        print("Temp Loop %d valid %d, current_page_name %s, current_sub_menu_name %s ", loop, valid, current_page_name, current_sub_menu_name)
         
-        if current_page_name == page_name:
+        if (down_button_count < 5) and (current_page_name == page_name):
             if current_sub_menu_name == sub_menu_name:
                 print("We found the requested page: ", page_name, sub_menu_name)
                 return True
             else:
                 down_button(canoe_api)
+                down_button_count += 1
+                    
         else:
             left_button(canoe_api)
+            down_button_count = 0
+            left_button_count += 1
         loop += 1
+        logger.info("down_button_count %d , left_button_count %d ",down_button_count,left_button_count)
+        print("down_button_count %d , left_button_count %d ",down_button_count,left_button_count)
         
         time.sleep(sleep_step)
     # 超时退出
@@ -189,9 +207,12 @@ def show_all_pages(canoe_api, cam_picture, case_logger_dir, timeout:float=10.0, 
         # =========业务逻辑=========
         ok = False
         for i in range(5):
-            tempPic = f"page_{loop}.png"
+            tempPic = f"page_{loop}_{i}.png"
+            tempUniformPic = f"page_{loop}_{i}_uniformd.png"
             cam_picture.camera_capture_one(1280, 720, case_logger_dir, tempPic)
+            cam_picture.camera_uniform_pic(tempPic, case_logger_dir, tempUniformPic)
             down_button(canoe_api)
+            time.sleep(1.0)
             loop += 1
         left_button(canoe_api)
         time.sleep(sleep_step)
