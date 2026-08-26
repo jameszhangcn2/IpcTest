@@ -3,8 +3,40 @@ import datetime
 import os
 import numpy as np
 from skimage.metrics import structural_similarity
+from tests.config import CAMERA_PIC_WIDTH, CAMERA_PIC_HEIGHT, TEMPLATE_TRIPSUMMARY_ROI_IMG, ROI_SUMMARY_PAGE_SUMMARY, TEMPLATE_ODOMETER_IMG, ROI_HOME_PAGE_ODOMETER
+from utils.image_check import template_match_in_roi
+import threading
+import logging
 
+logger = logging.getLogger(__name__)
 
+class LatestFrameCapture:
+    def __init__(self, src):
+        self.cap = cv2.VideoCapture(src)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_PIC_WIDTH)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_PIC_HEIGHT)
+        self.latest_frame = None
+        self.ret = False
+        self.running = True
+        self.th = threading.Thread(target=self._loop, daemon=True)
+        self.th.start()
+
+    def _loop(self):
+        while self.running:
+            ret, frame = self.cap.read()
+            if ret:
+                self.ret = ret
+                self.latest_frame = frame.copy()
+
+    def get(self):
+        return self.ret, self.latest_frame
+
+    def release(self):
+        self.running = False
+        self.th.join()
+        self.cap.release()
 
 def find_hmi_screen_rect(img, case_dir, blur_ksize=5, canny_low=20, canny_high=90):
     height, width = img.shape[:2]
@@ -12,7 +44,7 @@ def find_hmi_screen_rect(img, case_dir, blur_ksize=5, canny_low=20, canny_high=9
     blur = cv2.GaussianBlur(gray, (blur_ksize, blur_ksize), 0)
     edges = cv2.Canny(blur, canny_low, canny_high)
     kernel = np.ones((9, 9), np.uint8)
-    edges_dilate = cv2.dilate(edges, kernel, iterations=2)
+    edges_dilate = cv2.dilate(edges, kernel, iterations=3)
     
     
     # =========调试：保存中间图，看边缘=========
@@ -39,65 +71,55 @@ def find_hmi_screen_rect(img, case_dir, blur_ksize=5, canny_low=20, canny_high=9
     return screen_corners
 
 def order_corners(pts):
-    rect = np.zeros((4, 2), dtype="float32")
+    """对4个点排序：左上，右上，右下，左下"""
+    pts = pts.reshape((4,2))
+    rect = np.zeros((4,2), dtype=np.float32)
     s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)]
-    rect[2] = pts[np.argmax(s)]
+    rect[0] = pts[np.argmin(s)]   # 左上 sum最小
+    rect[2] = pts[np.argmax(s)]   # 右下 sum最大
     diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)]
-    rect[3] = pts[np.argmax(diff)]
+    rect[1] = pts[np.argmin(diff)]# 右上 diff最小
+    rect[3] = pts[np.argmax(diff)]# 左下 diff最大
     return rect
 
-def expand_corners(pts, expand_ratio=0.05):
+def expand_rect_corners(rect, expand_px, img_w, img_h):
     """
-    四边形角点向外等比例扩张
-    :param pts: 4个角点 (4,2)
-    :param expand_ratio: 向外扩张比例，0.05代表向外扩展屏幕尺寸5%；如果需要固定像素可改版本
-    :return: 扩张后新4角点
+    rect: 已经排序好的4角点 (4,2) float32
+    expand_px: 四周向外扩多少像素（你要的轮廓边距）
+    img_w,img_h:原图宽高，防止越界
     """
-    pts = pts.astype(np.float32)
-    # 中心点
-    center = np.mean(pts, axis=0)
-    new_pts = []
-    for p in pts:
-        # 从中心指向角点的向量，向外拉长
-        vec = p - center
-        new_p = center + vec * (1.0 + expand_ratio)
-        new_pts.append(new_p)
-    return np.array(new_pts, dtype=np.float32)
+    # 拿到min/max x y
+    x_coords = rect[:,0]
+    y_coords = rect[:,1]
+    x1 = max(0, np.min(x_coords) - expand_px)
+    y1 = max(0, np.min(y_coords) - expand_px)
+    x2 = min(img_w, np.max(x_coords) + expand_px)
+    y2 = min(img_h, np.max(y_coords) + expand_px)
+    # 生成新的规整四点
+    new_rect = np.array([
+        [x1, y1],
+        [x2, y1],
+        [x2, y2],
+        [x1, y2]
+    ], dtype=np.float32)
+    return new_rect
 
-def warp_hmi_with_margin(img, corners, fixed_width=1280, expand_ratio=0.05):
-    """
-    HMI透视矫正，角点向外扩展保留四周轮廓边距，固定输出宽度，高度随比例自适应
-    :param img: 原始BGR图像
-    :param corners: 检测到屏幕四角
-    :param fixed_width: 输出固定横向宽度
-    :param expand_ratio: 向外扩张比例 0.0~0.1，0.05=向外扩展5%屏幕大小
-    :return: warped图像，包含HMI+四周扩展余量
-    """
+def warp_hmi_with_margin(frame, corners, margin=20, canvas_w=1280, canvas_h=720):
+    h, w = frame.shape[:2]
+    # 1. 四点排序
     rect = order_corners(corners)
-    # 角点向外扩张
-    expanded_rect = expand_corners(rect, expand_ratio=expand_ratio)
-
-    (tl, tr, br, bl) = expanded_rect
-    maxWidth = max(np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2)),
-                   np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2)))
-    maxHeight = max(np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2)),
-                    np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2)))
-
-    ratio = maxHeight / maxWidth
-    out_w = fixed_width
-    out_h = int(fixed_width * ratio)
-
+    # 2. 向外扩margin
+    expanded_rect = expand_rect_corners(rect, margin, w, h)
+    # 3. 目标画布四点
     dst = np.array([
         [0, 0],
-        [out_w - 1, 0],
-        [out_w - 1, out_h - 1],
-        [0, out_h - 1]
-    ], dtype="float32")
-
+        [canvas_w, 0],
+        [canvas_w, canvas_h],
+        [0, canvas_h]
+    ], dtype=np.float32)
+    # 4. 透视矩阵 + 变换
     M = cv2.getPerspectiveTransform(expanded_rect, dst)
-    warped = cv2.warpPerspective(img, M, (out_w, out_h))
+    warped = cv2.warpPerspective(frame, M, (canvas_w, canvas_h))
     return warped
 
 def add_padding_after_warp(img, pad_left, pad_right, pad_top, pad_bottom):
@@ -106,24 +128,27 @@ def add_padding_after_warp(img, pad_left, pad_right, pad_top, pad_bottom):
     """
     return cv2.copyMakeBorder(img, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_CONSTANT, value=(0,0,0))
 
-
+def is_summary_page_match(summary_img_path):
+    found, max_val, match_pos = template_match_in_roi(summary_img_path, TEMPLATE_TRIPSUMMARY_ROI_IMG, ROI_SUMMARY_PAGE_SUMMARY)
+    return found, max_val
+def is_odometer_page_match(home_img_path):
+    found, max_val, match_pos = template_match_in_roi(home_img_path, TEMPLATE_ODOMETER_IMG, ROI_HOME_PAGE_ODOMETER)
+    return found, max_val
 class CameraPicture:
     def __init__(self, camera_id: int = 0):
         self.camera_id = camera_id
+        self.cam = LatestFrameCapture(camera_id)
+
     def camera_save_pic(self, frame,case_dir, filename):
         save_path = os.path.join(case_dir, filename)
-        print("Pic save path: ", save_path)
+        logger.info("CAP Pic save path %s.", save_path)
         cv2.imwrite(save_path, frame)
 
     # ==========OpenCV工具函数：摄像头截图、SSIM比对==========
-    def camera_capture_one(self, width=1280, height=720, case_dir: str = "", filename: str = "testpic"):
-        cap = cv2.VideoCapture(self.camera_id)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        for _ in range(5):
-            cap.read()
-        ret, frame = cap.read()
-        cap.release()
+    def camera_capture_one(self, case_dir: str = "", filename: str = "testpic", width=1280, height=720):
+
+        ret, frame = self.cam.get()
+
         if not ret:
             return None
         self.camera_save_pic(frame, case_dir, filename)
@@ -132,15 +157,29 @@ class CameraPicture:
     def camera_uniform_pic(self, pic_path, case_dir, out_filename):
         input_path = os.path.join(case_dir, pic_path)
         save_path = os.path.join(case_dir, out_filename)
-        print("Pic save path: ", save_path)
+        logger.info("Uniformed Pic save path %s.", save_path)
         img = cv2.imread(input_path)
-        corners = find_hmi_screen_rect(img, case_dir, blur_ksize=7, canny_low=20, canny_high=90)
+        hmi_found = False
+        corners = find_hmi_screen_rect(img, case_dir, blur_ksize=9, canny_low=20, canny_high=70)
         if corners is None:
-            print("未识别HMI屏幕")
+            logger.info("Can not recognize the HMI with canny low 20.")
+            corners = find_hmi_screen_rect(img, case_dir, blur_ksize=9, canny_low=15, canny_high=50)
+            if corners is None:
+                logger.info("Can not recognize the HMI with canny low 15.")
+                corners = find_hmi_screen_rect(img, case_dir, blur_ksize=9, canny_low=8, canny_high=35)
+                if corners is None:
+                    logger.info("Can not recognize the HMI with canny low 8.")
+                else:
+                    hmi_found = True
+            else:
+                hmi_found = True
         else:
+            hmi_found = True
+        if hmi_found:
             # 透视前角点向外扩展5%，保留四周轮廓
-            out1 = warp_hmi_with_margin(img, corners, fixed_width=1280, expand_ratio=0.3)
-            print(f"角点外扩输出尺寸 w={out1.shape[1]},h={out1.shape[0]}")
+            logger.info("HMI found!!")
+            out1 = warp_hmi_with_margin(img, corners, margin=160)
+            logger.info(f"out put size w={out1.shape[1]},h={out1.shape[0]}")
             cv2.imwrite(save_path, out1)
         return os.path.exists(save_path)
         

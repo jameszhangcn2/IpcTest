@@ -3,11 +3,9 @@ import numpy as np
 import pyautogui
 import time
 from pathlib import Path
+import logging
 
-BASE_DIR = Path(__file__).resolve().parent
-CAP_HOME_PAGE_IMG = "cap_home_page.png"   
-ODOMETER_IMG = str(BASE_DIR / ".." / "testTemplate" / "odometer.png") # HMI局域匹配模板图
-SPEEDOMETER_IMG = str(BASE_DIR / ".." / "testTemplate" / "speedometer.png") # HMI局域匹配模板图
+logger = logging.getLogger(__name__)
 
 def template_match_exist(big_img_path: str, template_path: str, threshold: float = 0.8):
     """
@@ -45,6 +43,10 @@ def template_match_in_roi(big_img_path, template_path, roi, threshold=0.8):
     """
     big = cv2.imread(str(big_img_path))
     templ = cv2.imread(str(template_path))
+    found = False
+    max_val = 0.0
+    match_pos = None
+    
 
     # 捕获图片读取失败
     if big is None:
@@ -58,15 +60,15 @@ def template_match_in_roi(big_img_path, template_path, roi, threshold=0.8):
     y2 = y + h
     # ROI越界校验
     if x < 0 or y < 0 or x2 > img_w or y2 > img_h:
-        raise ValueError(f"ROI越界！图像尺寸(w={img_w},h={img_h})，roi右下角({x2},{y2})")
-
+        logger.warning(f"ROI越界！图像尺寸(w={img_w},h={img_h})，roi右下角({x2},{y2})")
+        return found, max_val, match_pos
     roi_img = big[y:y+h, x:x+w]
     # 模板不能大于ROI
     th, tw = templ.shape[:2]
     rh, rw = roi_img.shape[:2]
     if tw > rw or th > rh:
-        raise ValueError(f"模板尺寸大于ROI！模板(w={tw},h={th}) ROI(w={rw},h={rh})")
-
+        logger.warning(f"模板尺寸大于ROI！模板(w={tw},h={th}) ROI(w={rw},h={rh})")
+        return found, max_val, match_pos
     res = cv2.matchTemplate(roi_img, templ, cv2.TM_CCOEFF_NORMED)
     max_val = float(np.max(res))
     found = max_val >= threshold
