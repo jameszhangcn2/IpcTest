@@ -15,6 +15,10 @@ TEMPLATE_HOMEPAGE01_IMG = str(BASE_DIR / ".." / "testTemplate" / "home_01.png") 
 TEMPLATE_HOMEPAGE01_KMH_IMG = str(BASE_DIR / ".." / "testTemplate" / "home_01_kmh.png") # HMI局域匹配模板图
 TEMPLATE_HOMEPAGE01_BLANK_IMG = str(BASE_DIR / ".." / "testTemplate" / "home_01_blank.png") # HMI局域匹配模板图
 
+# ===================== 调试总开关 =====================
+DEBUG_SAVE_EDGE = True   # True=自动保存所有中间边缘图；False=不保存
+DEBUG_SAVE_DIR = "debug_edge_output"
+# ======================================================
 
 TEMPLATE_HOMEPAGE02_IMG = str(BASE_DIR / ".." / "testTemplate" / "home_02.png") # HMI局域匹配模板图
 TEMPLATE_HOMEPAGE02_ECO_IMG = str(BASE_DIR / ".." / "testTemplate" / "home_02_eco.png") # HMI局域匹配模板图
@@ -60,10 +64,10 @@ ROI_HOME_PAGE_KMH = (0,0,1000,700)
 
 
 PAGE_HOME_SUBMENU_TABLE = [
-    {"sub_menu_name": "home_01",      "id_pictures":[{"path":TEMPLATE_HOMEPAGE01_KMH_IMG, "roi":ROI_PAGE_BIG, "score":0.9},
-                                                     {"path":TEMPLATE_HOMEPAGE01_BLANK_IMG, "roi":ROI_PAGE_BIG, "score":0.9},]},
-    {"sub_menu_name": "home_02",      "id_pictures":[{"path":TEMPLATE_HOMEPAGE02_ECO_IMG, "roi":ROI_PAGE_BIG, "score":0.85},
-                                                     {"path":TEMPLATE_HOMEPAGE01_KMH_IMG, "roi":ROI_PAGE_BIG, "score":0.9},
+    {"sub_menu_name": "home_01",      "id_pictures":[{"path":TEMPLATE_HOMEPAGE01_KMH_IMG, "roi":ROI_PAGE_BIG, "score":0.75},
+                                                     {"path":TEMPLATE_HOMEPAGE01_BLANK_IMG, "roi":ROI_PAGE_BIG, "score":0.75},]},
+    {"sub_menu_name": "home_02",      "id_pictures":[{"path":TEMPLATE_HOMEPAGE02_ECO_IMG, "roi":ROI_PAGE_BIG, "score":0.75},
+                                                     {"path":TEMPLATE_HOMEPAGE01_KMH_IMG, "roi":ROI_PAGE_BIG, "score":0.75},
                                                      #{"path":TEMPLATE_HOMEPAGE02_POWER_IMG, "roi":(0, 0, 1280, 720), "score":0.9},
                                                      #{"path":TEMPLATE_HOMEPAGE02_CHARGE_IMG, "roi":(0, 0, 1280, 720), "score":0.9},
                                                      ]},

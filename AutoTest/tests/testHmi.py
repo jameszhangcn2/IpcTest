@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class TestHMI:
     #@pytest.mark.skipif(True, reason="Not ready, temporary close.")
-    @pytest.mark.parametrize("loop_index", list(range(2)))
+    @pytest.mark.parametrize("loop_index", list(range(20)))
     def test_hmi(self, request, cam_recorder, cam_picture, canoe_api, kl15, case_logger, case_logger_dir, loop_index):
         case_name = request.node.nodeid.replace("/", "_").replace("\\", "_").replace(":", "_")
         logger.info(f"Round {loop_index+1} Excuting... {case_name}")
