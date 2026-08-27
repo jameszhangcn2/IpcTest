@@ -4,7 +4,7 @@ import os
 import numpy as np
 from skimage.metrics import structural_similarity
 from tests.config import CAMERA_PIC_WIDTH, CAMERA_PIC_HEIGHT, TEMPLATE_TRIPSUMMARY_ROI_IMG, ROI_SUMMARY_PAGE_SUMMARY, TEMPLATE_ODOMETER_IMG, ROI_HOME_PAGE_ODOMETER
-from utils.image_check import template_match_in_roi
+from utils.image_check import template_match_in_roi, is_template_matched
 import threading
 import logging
 
@@ -129,10 +129,10 @@ def add_padding_after_warp(img, pad_left, pad_right, pad_top, pad_bottom):
     return cv2.copyMakeBorder(img, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_CONSTANT, value=(0,0,0))
 
 def is_summary_page_match(summary_img_path):
-    found, max_val, match_pos = template_match_in_roi(summary_img_path, TEMPLATE_TRIPSUMMARY_ROI_IMG, ROI_SUMMARY_PAGE_SUMMARY)
+    found, max_val, match_method = is_template_matched(summary_img_path, TEMPLATE_TRIPSUMMARY_ROI_IMG, ROI_SUMMARY_PAGE_SUMMARY)
     return found, max_val
 def is_odometer_page_match(home_img_path):
-    found, max_val, match_pos = template_match_in_roi(home_img_path, TEMPLATE_ODOMETER_IMG, ROI_HOME_PAGE_ODOMETER)
+    found, max_val, match_method = is_template_matched(home_img_path, TEMPLATE_ODOMETER_IMG, ROI_HOME_PAGE_ODOMETER)
     return found, max_val
 class CameraPicture:
     def __init__(self, camera_id: int = 0):

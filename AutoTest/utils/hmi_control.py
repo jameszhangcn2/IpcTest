@@ -82,13 +82,13 @@ def get_current_page(cap_picture_path):
             all_id_pic_match = True
             for k in range(id_picture_num):
                 logger.info("id_picture loop %d", k)
-                exists, score, pos = template_match_in_roi(cap_picture_path, id_pictures[k]["path"], id_pictures[k]["roi"], id_pictures[k]["score"])
+                found, max_val, match_method = is_template_matched(cap_picture_path, id_pictures[k]["path"], id_pictures[k]["roi"], id_pictures[k]["score"])
                 logger.info("Try to match %s %s %s", PAGE_TABLE[i]["page_name"], sub_menus[j]["sub_menu_name"], id_pictures[k]["path"])
                 loop+=1
-                logger.info(f"Pic match result {exists} {score} {pos}")
-                if not exists:
+                logger.info(f"Pic match result {found} {max_val} {match_method}")
+                if not found:
                     all_id_pic_match = False
-                    logger.info(f"Pic not match.: {score:.3f}")
+                    logger.info(f"Pic not match.: {max_val:.3f}")
             if all_id_pic_match:
                 logger.info("All ID pictures match.")
                 return True,PAGE_TABLE[i]["page_name"],sub_menus[j]["sub_menu_name"]
