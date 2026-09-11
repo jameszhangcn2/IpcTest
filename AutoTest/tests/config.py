@@ -2,10 +2,11 @@ from pathlib import Path
 
 CAMERA_INDEX_PICTURE = 2   # 第0号摄像头，多摄像头可改成1,2
 CAMERA_INDEX_VIDEO = 1
-CAMERA_PIC_WIDTH = 1920
-CAMERA_PIC_HEIGHT = 1080
+CAMERA_PIC_WIDTH = 2560
+CAMERA_PIC_HEIGHT = 1440
 REC_FPS = 12
 KL15COM_PORT="COM6"
+SERIAL_PORT="COM21"
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -58,19 +59,20 @@ CAP_HOME_PAGE_IMG = "cap_home_page.png"
 
 ROI_PAGE_BIG = (0,0,1000,700)
 ROI_SUMMARY_PAGE_SUMMARY = ROI_PAGE_BIG
-ROI_HOME_PAGE_ODOMETER = (550,620,220,80)
+ROI_HOME_PAGE_ODOMETER = (550,500,150,100)
 ROI_HOME_PAGE_KMH = (0,0,1000,700)
 
 
 
 PAGE_HOME_SUBMENU_TABLE = [
-    {"sub_menu_name": "home_01",      "id_pictures":[{"path":TEMPLATE_HOMEPAGE01_KMH_IMG, "roi":ROI_PAGE_BIG, "score":0.75},
-                                                     {"path":TEMPLATE_HOMEPAGE01_BLANK_IMG, "roi":ROI_PAGE_BIG, "score":0.75},]},
+    
     {"sub_menu_name": "home_02",      "id_pictures":[{"path":TEMPLATE_HOMEPAGE02_ECO_IMG, "roi":ROI_PAGE_BIG, "score":0.75},
                                                      {"path":TEMPLATE_HOMEPAGE01_KMH_IMG, "roi":ROI_PAGE_BIG, "score":0.75},
                                                      #{"path":TEMPLATE_HOMEPAGE02_POWER_IMG, "roi":(0, 0, 1280, 720), "score":0.9},
                                                      #{"path":TEMPLATE_HOMEPAGE02_CHARGE_IMG, "roi":(0, 0, 1280, 720), "score":0.9},
                                                      ]},
+    {"sub_menu_name": "home_01",      "id_pictures":[{"path":TEMPLATE_HOMEPAGE01_KMH_IMG, "roi":ROI_PAGE_BIG, "score":0.75},
+                                                         {"path":TEMPLATE_HOMEPAGE01_BLANK_IMG, "roi":ROI_PAGE_BIG, "score":0.75},]},
 ]
 
 PAGE_SETTING_SUBMENU_TABLE = [

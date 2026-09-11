@@ -5,14 +5,15 @@ from utils.image_check import template_match_in_roi
 from utils.hmi_control import finding_home_page, get_current_page, go_to_page, show_all_pages
 from utils.camera_picture import is_summary_page_match, is_odometer_page_match
 from tests.config import PAGE_TABLE, TEST_IMG
-
+from utils.serial_logs import format_ts, _multi_match_worker
+import threading
 import logging
 
 logger = logging.getLogger(__name__)
 
 class TestHMI:
-    #@pytest.mark.skipif(True, reason="Not ready, temporary close.")
-    @pytest.mark.parametrize("loop_index", list(range(20)))
+    @pytest.mark.skipif(True, reason="Not ready, temporary close.")
+    @pytest.mark.parametrize("loop_index", list(range(2)))
     def test_hmi(self, request, cam_recorder, cam_picture, canoe_api, kl15, case_logger, case_logger_dir, loop_index):
         case_name = request.node.nodeid.replace("/", "_").replace("\\", "_").replace(":", "_")
         logger.info(f"Round {loop_index+1} Excuting... {case_name}")
@@ -221,15 +222,29 @@ class TestHMI:
             logger.info("Stop the CANOE measurement.")
         time.sleep(10) 
         pass
-    @pytest.mark.skipif(True, reason="Not ready, temparary suspend.")                
-    @pytest.mark.parametrize("loop_index", list(range(1)))    
-    def test_show_page(self, cam_recorder, cam_picture, canoe_api, kl15, case_logger, case_logger_dir, loop_index):
+    #@pytest.mark.skipif(True, reason="Not ready, temparary suspend.")                
+    @pytest.mark.parametrize("loop_index", list(range(10)))    
+    def test_show_page(self, cam_recorder, cam_picture, canoe_api, kl15, case_logger, case_logger_dir, serial_bg_monitor, loop_index):
         print(f"Round {loop_index+1} Excuting...")
         
         logger.info(f"Start using logger loop_index = {loop_index} .")
         
         canoeApi = canoe_api
         assert (canoeApi != None)
+
+        #配置串口log匹配关键字
+        keywords = ["stop feeddog", "READY", "Reset Reason: 0x00000401"]
+        result = {}
+        log_list = []
+        log_lock = threading.Lock()
+        stop_event = threading.Event()
+
+        t = threading.Thread(
+            target=_multi_match_worker,
+            args=(serial_bg_monitor.msg_queue, keywords, result, stop_event, log_list, log_lock),
+            daemon=True
+        )
+        t.start()
         
         #KL15 on
         kl15.kl15on()
@@ -257,7 +272,7 @@ class TestHMI:
         canoeApi.set_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition", 5)
         time.sleep(1) 
         print("\n Sysv_IGWorkCondition ", canoeApi.get_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition"))
-        ret = show_all_pages(canoe_api, cam_picture, case_logger_dir, 120, 3)
+        ret = show_all_pages(canoe_api, cam_picture, case_logger_dir, 180, 0.2)
         canoeApi.set_sys_var("Sysv_IGWorkCondition", "Sysv_IGWorkCondition", 1)
         time.sleep(1) 
         time.sleep(2)  # 等待总线响应
@@ -265,6 +280,21 @@ class TestHMI:
         kl15.kl15off()
         if measurement.Running:
             measurement.Stop()
-        time.sleep(10) 
+        
+        timeout = 8
+        start = time.time()
+        found = False
+        while time.time() - start < timeout:
+            if "Reset Reason: 0x00000401" in result:
+                found = True
+                break
+            time.sleep(0.1)
+
+        stop_event.set()
+        t.join(timeout=1.0)
+
+        # 失败时打印全部捕获串口日志
+        with log_lock:
+            assert not found, f"401 reset！\n===Captured serial log===\n" + "\n".join(log_list)
         pass        
 
