@@ -1,7 +1,7 @@
 import time
 from pathlib import Path
-from utils.image_check import template_match_in_roi 
-from tests.config import PAGE_TABLE, PAGE_HOME_SUBMENU_TABLE, TEMPLATE_SPEEDOMETER_IMG, CAMERA_INDEX_PICTURE
+from utils.image_check import template_match_in_roi,is_template_matched
+from tests.config import PAGE_TABLE, PAGE_HOME_SUBMENU_TABLE, TEMPLATE_SPEEDOMETER_IMG, CAMERA_INDEX_PICTURE, CAMERA_PIC_WIDTH, CAMERA_PIC_HEIGHT
 import logging
 
 logger = logging.getLogger(__name__)
@@ -212,7 +212,7 @@ def show_all_pages(canoe_api, cam_picture, case_logger_dir, timeout:float=10.0, 
         for i in range(5):
             tempPic = f"page_{loop}_{i}.png"
             tempUniformPic = f"page_{loop}_{i}_uniformd.png"
-            cam_picture.camera_capture_one(1280, 720, case_logger_dir, tempPic)
+            cam_picture.camera_capture_one(case_logger_dir, tempPic, CAMERA_PIC_WIDTH, CAMERA_PIC_HEIGHT)
             cam_picture.camera_uniform_pic(tempPic, case_logger_dir, tempUniformPic)
             down_button(canoe_api)
             time.sleep(1.0)

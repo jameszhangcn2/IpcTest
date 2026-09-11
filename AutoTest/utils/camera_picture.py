@@ -38,21 +38,21 @@ class LatestFrameCapture:
         self.th.join()
         self.cap.release()
 
-def find_hmi_screen_rect(img, case_dir, blur_ksize=5, canny_low=20, canny_high=90):
+def find_hmi_screen_rect(img, case_dir, match_method, blur_ksize=5, canny_low=20, canny_high=90, area_min_ratio=0.04, poly_epsilon=0.03, dilate_kernel=9, dilate_iter=3):
     height, width = img.shape[:2]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (blur_ksize, blur_ksize), 0)
     edges = cv2.Canny(blur, canny_low, canny_high)
-    kernel = np.ones((9, 9), np.uint8)
-    edges_dilate = cv2.dilate(edges, kernel, iterations=3)
+    kernel = np.ones((dilate_kernel, dilate_kernel), np.uint8)
+    edges_dilate = cv2.dilate(edges, kernel, dilate_iter)
     
     
     # =========调试：保存中间图，看边缘=========
-    temp_path = os.path.join(case_dir, "debug_gray.jpg")
+    temp_path = os.path.join(case_dir, f"debug_gray_{match_method}.jpg")
     cv2.imwrite(temp_path, gray)
-    temp_path = os.path.join(case_dir, "debug_edges.jpg")
+    temp_path = os.path.join(case_dir, f"debug_edges_{match_method}.jpg")
     cv2.imwrite(temp_path, edges)
-    temp_path = os.path.join(case_dir, "debug_edges_dilate.jpg")
+    temp_path = os.path.join(case_dir, f"debug_edges_dilate_{match_method}.jpg")
     cv2.imwrite(temp_path, edges_dilate)
     # ========================================
     
@@ -61,10 +61,10 @@ def find_hmi_screen_rect(img, case_dir, blur_ksize=5, canny_low=20, canny_high=9
     screen_corners = None
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area < height * width * 0.04:
+        if area < height * width * area_min_ratio:
             continue
         peri = cv2.arcLength(cnt, True)
-        approx = cv2.approxPolyDP(cnt, 0.03 * peri, True)
+        approx = cv2.approxPolyDP(cnt, poly_epsilon * peri, True)
         if len(approx) == 4:
             screen_corners = approx.reshape((4, 2))
             break
@@ -134,6 +134,24 @@ def is_summary_page_match(summary_img_path):
 def is_odometer_page_match(home_img_path):
     found, max_val, match_method = is_template_matched(home_img_path, TEMPLATE_ODOMETER_IMG, ROI_HOME_PAGE_ODOMETER)
     return found, max_val
+
+def remove_hmi_glare(img):
+    # 1. LAB空间对亮度通道做CLAHE自适应增强，抑制高光
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    l_enh = clahe.apply(l)
+    img_enh = cv2.merge((l_enh,a,b))
+    img_enh = cv2.cvtColor(img_enh, cv2.COLOR_LAB2BGR)
+
+    # 2. 高光抑制（gamma校正，压亮区）S
+    gamma = 0.45
+    look_up = np.array([((i / 255.0) ** gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
+    img_gamma = cv2.LUT(img_enh, look_up)
+
+    # 3. 可选：掩膜只处理HMI ROI区域，不影响背景
+    return img_gamma    
+    
 class CameraPicture:
     def __init__(self, camera_id: int = 0):
         self.camera_id = camera_id
@@ -145,7 +163,7 @@ class CameraPicture:
         cv2.imwrite(save_path, frame)
 
     # ==========OpenCV工具函数：摄像头截图、SSIM比对==========
-    def camera_capture_one(self, case_dir: str = "", filename: str = "testpic", width=1280, height=720):
+    def camera_capture_one(self, case_dir: str = "", filename: str = "testpic", width=CAMERA_PIC_WIDTH, height=CAMERA_PIC_HEIGHT):
 
         ret, frame = self.cam.get()
 
@@ -160,13 +178,13 @@ class CameraPicture:
         logger.info("Uniformed Pic save path %s.", save_path)
         img = cv2.imread(input_path)
         hmi_found = False
-        corners = find_hmi_screen_rect(img, case_dir, blur_ksize=9, canny_low=20, canny_high=70)
+        corners = find_hmi_screen_rect(img, case_dir, "1", blur_ksize=5, canny_low=2, canny_high=20, area_min_ratio=0.04, poly_epsilon=0.03, dilate_kernel=9, dilate_iter=9)
         if corners is None:
             logger.info("Can not recognize the HMI with canny low 20.")
-            corners = find_hmi_screen_rect(img, case_dir, blur_ksize=9, canny_low=15, canny_high=50)
+            corners = find_hmi_screen_rect(img, case_dir, "2",  blur_ksize=9, canny_low=15, canny_high=50)
             if corners is None:
                 logger.info("Can not recognize the HMI with canny low 15.")
-                corners = find_hmi_screen_rect(img, case_dir, blur_ksize=9, canny_low=8, canny_high=35)
+                corners = find_hmi_screen_rect(img, case_dir, "3",  blur_ksize=9, canny_low=8, canny_high=35)
                 if corners is None:
                     logger.info("Can not recognize the HMI with canny low 8.")
                 else:
@@ -178,7 +196,7 @@ class CameraPicture:
         if hmi_found:
             # 透视前角点向外扩展5%，保留四周轮廓
             logger.info("HMI found!!")
-            out1 = warp_hmi_with_margin(img, corners, margin=160)
+            out1 = warp_hmi_with_margin(img, corners, margin=260)
             logger.info(f"out put size w={out1.shape[1]},h={out1.shape[0]}")
             cv2.imwrite(save_path, out1)
         return os.path.exists(save_path)
@@ -195,5 +213,6 @@ class CameraPicture:
         g2 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         score, _ = structural_similarity(g1, g2, full=True)
         return round(score, 4)
-        
+    
+
         

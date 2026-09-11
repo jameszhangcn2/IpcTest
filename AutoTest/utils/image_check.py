@@ -6,6 +6,8 @@ from pathlib import Path
 import logging
 import os
 from tests.config import ROI_PAGE_BIG, DEBUG_SAVE_EDGE, DEBUG_SAVE_DIR
+from typing import List, Dict, Tuple
+
 logger = logging.getLogger(__name__)
 
 def template_match_exist(big_img_path: str, template_path: str, threshold: float = 0.8):
@@ -254,6 +256,7 @@ def is_template_matched(big_img, template_img, roi, threshhold=0.8):
         roi=roi_area,
         thresh=threshhold
     )
+    timestamp = f"{time.time():.3f}".replace(".", "_")
 
     logger.info(f"ROI区域匹配得分:{score:.3f}, result={is_match}")
     if is_match:
@@ -262,13 +265,13 @@ def is_template_matched(big_img, template_img, roi, threshhold=0.8):
         x2 = x1 + w
         y2 = y1 + h
         cv2.rectangle(hmi_img, (x1, y1), (x2, y2), (0,255,0), 2)
-        cv2.imwrite("debug_blue_text_match.png", hmi_img)
+        cv2.imwrite(os.path.join(DEBUG_SAVE_DIR, f"{timestamp}_debug_blue_text_match.png"), hmi_img)
         return True, score, "roi_edge_match"
 
 
     is_match, cnt, good, kp1, kp2 = match_hmi_orb(hmi_img, tpl)
     dbg_img = cv2.drawMatches(hmi_img, kp1, tpl, kp2, good, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-    cv2.imwrite("debug_orb_match.jpg", dbg_img)
+    cv2.imwrite(os.path.join(DEBUG_SAVE_DIR, f"{timestamp}_debug_orb_match.jpg"), dbg_img)
     logger.info(f"ORB valid points:{cnt}, match={is_match}")
     if is_match:
         return True, cnt, "orb_match"
@@ -278,3 +281,158 @@ def is_template_matched(big_img, template_img, roi, threshhold=0.8):
     if is_match:
         return True, max_val, "edge_match"
     return False, 0.0, None
+
+
+def clahe_enhance(gray_img, clip_limit=2.0, grid=(8,8)):
+    """CLAHE局部对比度增强，改善屏幕反光、局部过曝/晕光"""
+    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=grid)
+    out = clahe.apply(gray_img)
+    return out
+
+def calc_iou(box1: np.ndarray, box2: np.ndarray) -> float:
+    x1 = np.min(box1[:, 0])
+    y1 = np.min(box1[:, 1])
+    x2 = np.max(box1[:, 0])
+    y2 = np.max(box1[:, 1])
+
+    a1 = np.min(box2[:, 0])
+    b1 = np.min(box2[:, 1])
+    a2 = np.max(box2[:, 0])
+    b2 = np.max(box2[:, 1])
+
+    inter_x1 = max(x1, a1)
+    inter_y1 = max(y1, b1)
+    inter_x2 = min(x2, a2)
+    inter_y2 = min(y2, b2)
+    if inter_x2 <= inter_x1 or inter_y2 <= inter_y1:
+        return 0.0
+    inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+    area1 = (x2 - x1) * (y2 - y1)
+    area2 = (a2 - a1) * (b2 - b1)
+    union = area1 + area2 - inter_area
+    return inter_area / union
+
+def nms_detections(dets: List[Dict], iou_thr=0.45) -> List[Dict]:
+    if len(dets) == 0:
+        return []
+    dets_sorted = sorted(dets, key=lambda d: d["inliers"], reverse=True)
+    keep = []
+    for d in dets_sorted:
+        skip = False
+        for k in keep:
+            iou = calc_iou(d["corners"][:, 0], k["corners"][:, 0])
+            if iou >= iou_thr:
+                skip = True
+                break
+        if not skip:
+            keep.append(d)
+    return keep
+
+def akaze_template_detect_roi(
+    template_path: str,
+    scene_img,
+    akaze,
+    roi: Tuple[int, int, int, int] = None,
+    use_clahe=True,
+    clip_limit=2.0,
+    grid=(8,8),
+    lowe_ratio=0.72,
+    min_inliers=5,
+    ransac_thresh=5.0
+):
+    template = cv2.imread(template_path)
+    if template is None:
+        return None
+
+    scene_full = scene_img.copy()
+    if roi is not None:
+        x0, y0, w_roi, h_roi = roi
+        roi_crop = scene_full[y0:y0 + h_roi, x0:x0 + w_roi]
+        gray_scene = cv2.cvtColor(roi_crop, cv2.COLOR_BGR2GRAY)
+    else:
+        gray_scene = cv2.cvtColor(scene_full, cv2.COLOR_BGR2GRAY)
+
+    gray_temp = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+
+    # CLAHE预处理
+    if use_clahe:
+        gray_scene = clahe_enhance(gray_scene, clip_limit, grid)
+        gray_temp = clahe_enhance(gray_temp, clip_limit, grid)
+
+    kp1, des1 = akaze.detectAndCompute(gray_temp, None)
+    kp2, des2 = akaze.detectAndCompute(gray_scene, None)
+
+    if des1 is None or des2 is None or len(kp1) == 0 or len(kp2) == 0:
+        return None
+
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING)
+    knn_matches = bf.knnMatch(des1, des2, k=2)
+    good_matches = []
+    for m, n in knn_matches:
+        if m.distance < lowe_ratio * n.distance:
+            good_matches.append(m)
+
+    if len(good_matches) < 4:
+        return None
+
+    src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+    dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+
+    H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, ransac_thresh)
+    if H is None:
+        return None
+
+    inlier_count = np.sum(mask)
+    if inlier_count < min_inliers:
+        return None
+
+    h_tpl, w_tpl = template.shape[:2]
+    corners_tpl = np.float32([[0, 0], [w_tpl, 0], [w_tpl, h_tpl], [0, h_tpl]]).reshape(-1, 1, 2)
+    corners_roi = cv2.perspectiveTransform(corners_tpl, H)
+
+    if roi is not None:
+        x0, y0, _, _ = roi
+        corners_roi[:, :, 0] += x0
+        corners_roi[:, :, 1] += y0
+
+    corners_int = np.int32(corners_roi)
+    cx = np.mean(corners_roi[:, 0, 0])
+    cy = np.mean(corners_roi[:, 0, 1])
+
+    p0 = corners_roi[0, 0]
+    p1 = corners_roi[1, 0]
+    dx = p1[0] - p0[0]
+    dy = p1[1] - p0[1]
+    angle = np.rad2deg(np.arctan2(dy, dx))
+
+    result = {
+        "template": template_path,
+        "corners": corners_int,
+        "center": (float(cx), float(cy)),
+        "angle_deg": float(angle),
+        "inliers": int(inlier_count),
+        "H_matrix": H
+    }
+    return result
+
+def draw_detection_box(scene_img, detect_result, color=(0, 255, 0)):
+    if detect_result is None:
+        return scene_img.copy()
+    img_out = scene_img.copy()
+    pts = detect_result["corners"]
+    cv2.polylines(img_out, [pts], True, color, 2)
+    cx, cy = detect_result["center"]
+    cv2.circle(img_out, (int(cx), int(cy)), 4, (0, 0, 255), -1)
+    text = f'angle:{detect_result["angle_deg"]:.1f},in:{detect_result["inliers"]}'
+    cv2.putText(img_out, text, (pts[0, 0, 0], pts[0, 0, 1] - 8),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+    return img_out
+
+def draw_roi_box(img, roi, color=(255, 0, 0)):
+    if roi is None:
+        return img
+    x, y, w, h = roi
+    out = img.copy()
+    cv2.rectangle(out, (x, y), (x + w, y + h), color, 2)
+    return out
+
