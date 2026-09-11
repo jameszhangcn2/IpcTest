@@ -5,6 +5,7 @@ from utils.camera_recorder import CameraRecorder
 from utils.camera_picture import CameraPicture
 from utils.canoe_api import CanoeApi
 from utils.serial_kl15 import SerialKL15
+from utils.serial_logs import SerialBgMonitor
 
 import pytest
 import pythoncom
@@ -25,8 +26,30 @@ from datetime import datetime
 
 from openpyxl import Workbook, load_workbook
 
-from tests.config import CAMERA_INDEX_VIDEO, CAMERA_INDEX_PICTURE, CANOE_CFG, KL15COM_PORT
+from tests.config import CAMERA_INDEX_VIDEO, CAMERA_INDEX_PICTURE, CANOE_CFG, KL15COM_PORT, SERIAL_PORT
 
+@pytest.fixture(scope="session")
+def serial_bg_monitor(dir_session):
+    log_name = f"serial_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
+    serial_log_path = os.path.join(dir_session, log_name)
+
+    monitor = SerialBgMonitor(
+            port=SERIAL_PORT,
+            baudrate=115200,
+            max_cache=2000,
+            log_file=serial_log_path,
+            max_file_size_mb=20,
+            max_backup_count=5,
+            write_queue_maxsize=500,
+            monitor_interval=1.0,
+            msg_queue_warn_thresh=200,
+            write_queue_warn_thresh=400,
+            rotate_queue_warn_thresh=2
+        )
+    monitor.start()
+    yield monitor
+    monitor.stop()
 
 # 1. 注册自定义命令行参数 --log-root
 def pytest_addoption(parser):
