@@ -5,17 +5,36 @@ import os
 from utils.image_check import template_match_in_roi, match_hmi_by_edge_roi, match_hmi_orb, is_template_matched
 from tests.config import ROI_PAGE_BIG, DEBUG_SAVE_EDGE, DEBUG_SAVE_DIR
 import logging
+from utils.camera_picture import CameraPicture
+from utils.hmi_control import finding_home_page, get_current_page, go_to_page, show_all_pages
 
 BASE_DIR = Path(__file__).resolve().parent
 
-BIG_IMG = str(BASE_DIR / ".." / "tools/testpic" / "capture_home_02_page_uniformd.png") # HMI局域匹配模板图
-TEMPLATE_IMG = str(BASE_DIR / ".." / "tools/testpic" / "home_odometer3.png") # HMI局域匹配模板图
+TEST_DIR = str(BASE_DIR / ".." / "tools/testpic") # HMI局域匹配模板图
+BIG_IMG = str(BASE_DIR / ".." / "tools/testpic" / "TripA.jpg") # HMI局域匹配模板图
+TEMPLATE_IMG = str(BASE_DIR / ".." / "tools/testpic" / "home_odometer.png") # HMI局域匹配模板图
 
 logger = logging.getLogger(__name__)
 
 class TestMatch:
-    def test_match(self, request):
-        
+    def test_match(self, request, cam_picture):
+
+
+        tempPic = "TripA.jpg"
+        tempUniformPic = "TripA_uniform.png"
+        ret = cam_picture.camera_uniform_pic(tempPic, TEST_DIR, tempUniformPic)
+
+
+        valid = False
+        current_page_name = None
+        current_sub_menu_name = None
+        big_img_path = None
+        if ret:
+            big_img_path = str(Path(TEST_DIR) / tempUniformPic)
+            valid, current_page_name, current_sub_menu_name = get_current_page(big_img_path)
+        logger.info("valid %d, current_page_name %s, current_sub_menu_name %s big_img_path %s", 
+                    valid, current_page_name, current_sub_menu_name, big_img_path)
+        '''
         hmi_img = cv2.imread(BIG_IMG)
         tpl = cv2.imread(TEMPLATE_IMG)
         found, max_val, match_pos = template_match_in_roi(BIG_IMG, TEMPLATE_IMG, ROI_PAGE_BIG)
@@ -23,7 +42,7 @@ class TestMatch:
 
         #与ROI不同，这里是左上，右下
         #(cx, cy, rw, rh) = ROI_PAGE_BIG
-        (cx, cy, rw, rh) = (550,550,700,600)
+        (cx, cy, rw, rh) = (550,500,150,70)
         x1 = cx
         y1 = cy
         x2 = cx + rw
@@ -57,3 +76,4 @@ class TestMatch:
         #cv2.imshow("debug", hmi_img)
         #cv2.waitKey(0)
         #cv2.destroyAllWindows()
+        '''
